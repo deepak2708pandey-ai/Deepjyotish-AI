@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DeepJyotish AI — V9</title>
+<script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js">
+function askAI(){
+  const q=document.getElementById("aiQuestion").value.trim().toLowerCase();
+  const box=document.getElementById("aiAnswer");
+  if(!q){box.style.display="block";box.innerHTML="कृपया कोई सवाल लिखें।";return;}
+  let answer="";
+  if(q.includes("career")||q.includes("job")||q.includes("काम")||q.includes("व्यवसाय")){
+    answer="Career reading के लिए पहले 10th house, उसके lord, संबंधित ग्रहों की strength और वर्तमान Dasha को साथ में देखना चाहिए। V7 में basic data मौजूद है; अगली version में इन conditions को dedicated career rules में बदला जाएगा।";
+  }else if(q.includes("marriage")||q.includes("विवाह")||q.includes("शादी")){
+    answer="Marriage reading में 7th house, 7th lord, Venus/Jupiter, relevant aspects और Dasha को साथ में evaluate करना चाहिए। अभी हमारा engine calculation foundation तैयार कर रहा है।";
+  }else if(q.includes("money")||q.includes("finance")||q.includes("पैसा")||q.includes("धन")){
+    answer="Finance reading में 2nd और 11th houses, उनके lords, धन-संबंधित योग और Dasha को context में देखना चाहिए। केवल एक ग्रह या योग के आधार पर final prediction नहीं देना चाहिए।";
+  }else{
+    answer="आपका सवाल astrology rules के context में record किया गया है। अगले चरण में real LLM integration जोड़कर यही structured Kundli data AI को दिया जाएगा, ताकि वह अधिक विस्तृत Hindi interpretation दे सके।";
+  }
+  box.style.display="block";
+  box.innerHTML=`<b>🤖 Prototype AI:</b><p>${answer}</p>`;
+}
+
+async function testGemini(){
+  const key=document.getElementById("apiKey").value.trim();
+  const status=document.getElementById("apiStatus");
+  if(!key){
+    status.innerHTML="⚠️ पहले Gemini API key डालें।";
+    return;
+  }
+  status.innerHTML="⏳ Connection test हो रहा है...";
+  try{
+    const endpoint="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key="+encodeURIComponent(key);
+    const prompt="You are testing an astrology app connection. Reply only: AI connection successful.";
+    const res=await fetch(endpoint,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})
+    });
+    const data=await res.json();
+    if(!res.ok) throw new Error(data?.error?.message || "API request failed");
+    const text=data?.candidates?.[0]?.content?.parts?.[0]?.text || "Response received.";
+    status.innerHTML="✅ "+text;
+  }catch(e){
+    status.innerHTML="❌ "+e.message;
+  }
+}
+</script>
+<style>
+body{margin:0;background:#f6f2ea;color:#241f1a;font-family:Arial,sans-serif}
+.wrap{max-width:820px;margin:auto;padding:18px}
+.card{background:#fff;border-radius:18px;padding:20px;margin:14px 0;box-shadow:0 4px 18px #0001}
+h1{margin:0 0 5px} .muted{color:#6e665c}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+label{font-weight:700;display:block;margin-top:10px}
+input{width:100%;box-sizing:border-box;padding:11px;margin-top:5px;border:1px solid #ccc;border-radius:9px;font-size:15px}
+button{width:100%;padding:13px;border:0;border-radius:10px;background:#5a3b1e;color:#fff;font-size:16px;font-weight:700;margin-top:16px}
+table{width:100%;border-collapse:collapse;margin-top:10px}th,td{text-align:left;padding:9px;border-bottom:1px solid #eee}
+.badge{display:inline-block;background:#eee5d7;padding:6px 9px;border-radius:20px;margin:3px}
+.small{font-size:13px;color:#756e66}
+.error{color:#9b1c1c;font-weight:700}
+@media(max-width:600px){.grid{grid-template-columns:1fr}}
+</style>
+
+<style>
+.chart12{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px}
+.bh{border:1px solid #ddd;border-radius:10px;padding:9px;min-height:78px;background:#faf8f4}
+.bh b{display:block}.bh .p{font-size:13px;margin-top:5px}
+.aspect{font-size:13px;color:#4f463d}
+@media(max-width:600px){.chart12{grid-template-columns:repeat(2,1fr)}}
+</style>
+
+<style>
+.nak-table{width:100%;border-collapse:collapse}
+.nak-table th,.nak-table td{padding:8px;border-bottom:1px solid #eee;text-align:left}
+.note{font-size:13px;color:#6e665c}
+</style>
+
+<style>
+.dasha-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.dasha-box{border:1px solid #ddd;border-radius:10px;padding:12px;background:#faf8f4}
+@media(max-width:600px){.dasha-grid{grid-template-columns:1fr}}
+</style>
+
+<style>
+.section-title{margin-top:24px}
+.rule-ok{font-weight:700}
+.rule-card{border:1px solid #ddd;border-radius:10px;padding:12px;margin:8px 0;background:#faf8f4}
+</style>
+
+<style>
+.ai-box{background:#f7f1e8;border:1px solid #ded1bf;border-radius:14px;padding:16px;margin-top:10px}
+.ai-box h4{margin:4px 0 8px}.ai-box p{line-height:1.55}
+.chat-row{display:flex;gap:8px}.chat-row input{flex:1}
+</style>
+
+<style>
+.api-panel{background:#f7f1e8;border:1px solid #ded1bf;border-radius:14px;padding:16px;margin-top:12px}
+.api-panel input{margin-top:7px}
+.api-status{font-size:13px;margin-top:8px}
+</style>
+
+<style>
+.ai-panel{background:#f7f1e8;border:1px solid #ded1bf;border-radius:14px;padding:16px;margin:18px 0}
+.ai-panel input,.ai-panel textarea{width:100%;box-sizing:border-box;padding:12px;margin:7px 0;border:1px solid #ccc;border-radius:9px;font-size:16px}
+.ai-panel button{width:100%;padding:13px;border:0;border-radius:10px;background:#5a3b1e;color:#fff;font-size:16px;font-weight:700}
+.ai-status{margin-top:10px;font-size:14px}.ai-answer{margin-top:14px;background:#fff;border-radius:10px;padding:14px;line-height:1.6;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="card">
+<h1>🔮 AI Jyotish — Kundli Engine v2</h1>
+<div class="muted">Prototype: sidereal planetary positions + Lagna + whole-sign houses</div>
+
+<div class="grid">
+<div><label>नाम</label><input id="name" placeholder="नाम"></div>
+<div><label>जन्म तारीख</label><input id="dob" type="date"></div>
+<div><label>जन्म समय</label><input id="time" type="time"></div>
+<div><label>जन्म स्थान</label><input id="place" value="Baihar, Madhya Pradesh"></div>
+<div><label>Latitude</label><input id="lat" type="number" step="0.0001" value="22.1024"></div>
+<div><label>Longitude</label><input id="lon" type="number" step="0.0001" value="80.5480"></div>
+</div>
+
+<button onclick="calculate()">कुंडली Calculate करें</button>
+<p class="small">अभी location के latitude/longitude manually दिए जा रहे हैं ताकि calculation deterministic रहे। बाद में place search जोड़ेंगे।</p>
+<div id="msg"></div>
+</div>
+
+<div class="card" id="out" style="display:none">
+<h2 id="title"></h2>
+<div id="summary"></div>
+<h3>ग्रह स्थिति (Sidereal)</h3>
+<table>
+<thead><tr><th>ग्रह</th><th>राशि</th><th>अंश</th><th>भाव</th></tr></thead>
+<tbody id="planetRows"></tbody>
+</table>
+<h3>12 भाव Chart</h3>
+<div id="chart12" class="chart12"></div>
+
+<h3>भावेश</h3>
+<table>
+<thead><tr><th>भाव</th><th>राशि</th><th>भावेश</th></tr></thead>
+<tbody id="lordRows"></tbody>
+</table>
+
+<h3>ग्रहों की दृष्टि</h3>
+<div id="aspectList" class="aspect"></div>
+
+<h3>🌙 Nakshatra Analysis</h3>
+<div id="moonNak"></div>
+<table class="nak-table">
+<thead><tr><th>ग्रह</th><th>Nakshatra</th><th>Pada</th><th>Nakshatra Lord</th></tr></thead>
+<tbody id="nakRows"></tbody>
+</table>
+<p class="note">Prototype uses sidereal longitude and the standard 27-Nakshatra division of 13°20′, with 4 padas of 3°20′ each. Production version will be cross-checked against a validated ephemeris.</p>
+
+<h3>🕉️ Vimshottari Dasha</h3>
+<div id="dashaSummary"></div>
+<div class="dasha-grid">
+  <div class="dasha-box"><b>Current Mahadasha</b><div id="currentMD">—</div></div>
+  <div class="dasha-box"><b>Current Antardasha</b><div id="currentAD">—</div></div>
+</div>
+<table>
+<thead><tr><th>Mahadasha</th><th>Start</th><th>End</th><th>Duration</th></tr></thead>
+<tbody id="dashaRows"></tbody>
+</table>
+<p class="note">This prototype uses the standard 120-year Vimshottari sequence. The first Mahadasha is determined from the Moon's Nakshatra Lord and its remaining Nakshatra arc. Dates are calculated approximately in tropical-calendar days; production version will be cross-checked against a validated Jyotish ephemeris.</p>
+
+<h3 class="section-title">💪 ग्रह स्थिति / Basic Strength</h3>
+<table>
+<thead><tr><th>ग्रह</th><th>राशि स्थिति</th><th>भाव</th><th>स्थिति</th></tr></thead>
+<tbody id="strengthRows"></tbody>
+</table>
+
+<h3 class="section-title">✨ योग Detection — Prototype</h3>
+<div id="yogaResults"></div>
+<p class="note">V6 में selected classical rules का प्रारंभिक rule-engine बनाया गया है। यह अभी पूर्ण classical yoga library नहीं है; production version में हर rule को reference texts/validated calculations से verify किया जाएगा।</p>
+
+<h3>🤖 AI Astrology Interpretation</h3>
+<div class="ai-box">
+  <h4>Structured Reading</h4>
+  <div id="aiReading">कुंडली calculate करने के बाद यहाँ interpretation आएगा।</div>
+</div>
+<div class="chat-row">
+  <input id="aiQuestion" placeholder="जैसे: career के बारे में बताइए">
+  <button style="width:auto;padding:10px 16px" onclick="askAI()">पूछें</button>
+</div>
+<div class="ai-box" id="aiAnswer" style="display:none"></div>
+<p class="note">V7 prototype में local rule-based interpretation है। वास्तविक LLM/API integration अगली stage में लगाया जा सकता है; इससे API key और usage limits जुड़ेंगे।</p>
+
+<h3>🔌 V8 — Real AI Integration</h3>
+<div class="api-panel">
+  <b>Gemini API connection</b>
+  <p class="note">API key को इस HTML में save नहीं किया जाएगा। यह prototype केवल connection configuration तैयार करता है। Production में key server-side secret के रूप में रखी जाएगी।</p>
+  <label>Gemini API Key (optional for local test)</label>
+  <input id="apiKey" type="password" placeholder="AIza...">
+  <button onclick="testGemini()" style="margin-top:10px">AI Connection Test</button>
+  <div id="apiStatus" class="api-status"></div>
+</div>
+
+
+<h3>🤖 V9 — Real AI Astrology Chat</h3>
+<div class="ai-panel">
+  <p><b>अब app Gemini को सवाल भेज सकता है।</b></p>
+  <p class="note">API key केवल local test के लिए इस browser session में इस्तेमाल होगी। Public app बनाने से पहले इसे server-side रखना जरूरी होगा.</p>
+  <label>Gemini API Key</label>
+  <input id="v9ApiKey" type="password" placeholder="अपनी Gemini API key यहाँ paste करें">
+  <label>आपका सवाल</label>
+  <textarea id="v9Question" rows="3" placeholder="जैसे: मेरी career के बारे में क्या संकेत हैं?"></textarea>
+  <button onclick="v9AskAI()">🤖 AI से पूछें</button>
+  <div id="v9Status" class="ai-status"></div>
+  <div id="v9Answer" class="ai-answer" style="display:none"></div>
+</div>
+<h3>Basic Chart Data</h3>
+<div id="basics"></div>
+<p class="small">यह prototype Astronomy Engine की astronomical calculations पर आधारित है; production astrology engine के लिए Swiss Ephemeris/validated reference chart से cross-check करना जरूरी होगा।</p>
+</div>
+</div>
+
+<script>
+const SIGNS=["मेष","वृषभ","मिथुन","कर्क","सिंह","कन्या","तुला","वृश्चिक","धनु","मकर","कुंभ","मीन"];
+const PLANETS=[
+  ["सूर्य", Astronomy.Body.Sun],
+  ["चंद्र", Astronomy.Body.Moon],
+  ["मंगल", Astronomy.Body.Mars],
+  ["बुध", Astronomy.Body.Mercury],
+  ["गुरु", Astronomy.Body.Jupiter],
+  ["शुक्र", Astronomy.Body.Venus],
+  ["शनि", Astronomy.Body.Saturn]
+];
+
+function norm(x){x%=360;return x<0?x+360:x}
+function dms(x){
+  let d=Math.floor(x), m=Math.floor((x-d)*60), s=Math.round((((x-d)*60)-m)*60);
+  if(s>=60){s=0;m++} if(m>=60){m=0;d++}
+  return `${d}° ${m}' ${s}"`;
+}
+// A compact Lahiri-style ayanamsha approximation for this prototype.
+// Production version will replace this with a validated ephemeris/ayanamsha implementation.
+function lahiriAyanamsha(year){
+  return 23.856 + (year-2000)*0.01397;
+}
+function signOf(lon){return Math.floor(norm(lon)/30)}
+function signDegree(lon){return norm(lon)%30}
+
+function ascendant(date, lat, lon){
+  const eps=23.4392911;
+  const gst=Astronomy.SiderealTime(date)*15;
+  const lst=norm(gst+lon);
+  const phi=lat*Math.PI/180, e=eps*Math.PI/180, t=lst*Math.PI/180;
+  const lam=Math.atan2(Math.cos(t),-(Math.sin(t)*Math.cos(e)+Math.tan(phi)*Math.sin(e)))*180/Math.PI;
+  return norm(lam);
+}
+function wholeHouse(planetLon, ascLon){
+  return ((signOf(planetLon)-signOf(ascLon)+12)%12)+1;
+}
+function calcPlanet(body,date,ayan){
+  let tropical=Astronomy.EclipticLongitude(body,date);
+  return norm(tropical-ayan);
+}
+function calculate(){
+  const msg=document.getElementById("msg"); msg.innerHTML="";
+  try{
+    const name=document.getElementById("name").value.trim()||"User";
+    const dob=document.getElementById("dob").value;
+    const time=document.getElementById("time").value;
+    const place=document.getElementById("place").value.trim();
+    const lat=parseFloat(document.getElementById("lat").value);
+    const lon=parseFloat(document.getElementById("lon").value);
+    if(!dob||!time||!place||!Number.isFinite(lat)||!Number.isFinite(lon)){throw new Error("सभी details भरें।")}
+    if(lat<-90||lat>90||lon<-180||lon>180) throw new Error("Latitude/Longitude सही range में दें।");
+
+    // Browser input is local time. For this first prototype we use India Standard Time (+05:30).
+    // Later we will attach timezone lookup to the location.
+    const utc = new Date(`${dob}T${time}:00+05:30`);
+    const ayan=lahiriAyanamsha(utc.getUTCFullYear());
+    const asc=ascendant(utc,lat,lon);
+
+    const rows=[];
+    for(const [nameP,body] of PLANETS){
+      const l=calcPlanet(body,utc,ayan);
+      rows.push({name:nameP,lon:l,sign:signOf(l),deg:signDegree(l),house:wholeHouse(l,asc)});
+    }
+
+    // Mean lunar node approximation (Rahu); Ketu is 180° opposite.
+    const jd=2451545.0+(utc.getTime()/86400000)-Date.UTC(2000,0,1)/86400000;
+    const T=(jd-2451545.0)/36525;
+    const rahu=norm(125.04452-1934.136261*T);
+    const rahuSid=norm(rahu-ayan);
+    rows.push({name:"राहु",lon:rahuSid,sign:signOf(rahuSid),deg:signDegree(rahuSid),house:wholeHouse(rahuSid,asc)});
+    const ketu=norm(rahuSid+180);
+    rows.push({name:"केतु",lon:ketu,sign:signOf(ketu),deg:signDegree(ketu),house:wholeHouse(ketu,asc)});
+
+    document.getElementById("title").innerText=`${name} — Kundli Data`;
+    document.getElementById("summary").innerHTML=
+      `<span class="badge">स्थान: ${place}</span>
+       <span class="badge">Lagna: ${SIGNS[signOf(asc)]}</span>
+       <span class="badge">Lagna degree: ${dms(signDegree(asc))}</span>`;
+
+    document.getElementById("planetRows").innerHTML=rows.map(p=>
+      `<tr><td><b>${p.name}</b></td><td>${SIGNS[p.sign]}</td><td>${dms(p.deg)}</td><td>${p.house}</td></tr>`
+    ).join("");
+
+    // Vedic sign lords (traditional 7 planets + nodes excluded as sign lords).
+    const lords=["मंगल","शुक्र","बुध","चंद्र","सूर्य","बुध","शुक्र","मंगल","गुरु","शनि","शनि","गुरु"];
+    const houseRows=[];
+    const houseSigns=[];
+    const ascSign=signOf(asc);
+    for(let h=1;h<=12;h++){
+      const si=(ascSign+h-1)%12;
+      houseSigns.push(si);
+      houseRows.push(`<tr><td>${h}</td><td>${SIGNS[si]}</td><td>${lords[si]}</td></tr>`);
+    }
+    document.getElementById("lordRows").innerHTML=houseRows.join("");
+
+    // Compact North-Indian-style logical grid: each cell is a house; this is not a graphical kundli yet.
+    const housePlanets=Array.from({length:12},()=>[]);
+    rows.forEach(x=>housePlanets[x.house-1].push(x.name));
+    document.getElementById("chart12").innerHTML=housePlanets.map((ps,i)=>{
+      const si=houseSigns[i];
+      return `<div class="bh"><b>भाव ${i+1}</b><div>${SIGNS[si]}</div><div class="p">${ps.length?ps.join(", "):"—"}</div></div>`;
+    }).join("");
+
+    // Classical graha drishti used for this prototype:
+    // all grahas: 7th; Mars: 4th & 8th; Jupiter: 5th & 9th; Saturn: 3rd & 10th.
+    const aspects=[];
+    for(const x of rows){
+      const targets=[7];
+      if(x.name==="मंगल") targets.push(4,8);
+      if(x.name==="गुरु") targets.push(5,9);
+      if(x.name==="शनि") targets.push(3,10);
+      const uniq=[...new Set(targets)];
+      const targetHouses=uniq.map(n=>((x.house-1+n-1)%12)+1);
+      aspects.push(`<div><b>${x.name}</b> → भाव ${targetHouses.join(", ")}</div>`);
+    }
+    document.getElementById("aspectList").innerHTML=aspects.join("");
+
+    
+    const nakNames=[
+      "अश्विनी","भरणी","कृत्तिका","रोहिणी","मृगशिरा","आर्द्रा","पुनर्वसु",
+      "पुष्य","आश्लेषा","मघा","पूर्वाफाल्गुनी","उत्तराफाल्गुनी","हस्त","चित्रा",
+      "स्वाती","विशाखा","अनुराधा","ज्येष्ठा","मूल","पूर्वाषाढ़ा","उत्तराषाढ़ा",
+      "श्रवण","धनिष्ठा","शतभिषा","पूर्वाभाद्रपद","उत्तराभाद्रपद","रेवती"
+    ];
+    const nakLords=[
+      "केतु","शुक्र","सूर्य","चंद्र","मंगल","राहु","गुरु","शनि","बुध",
+      "केतु","शुक्र","सूर्य","चंद्र","मंगल","राहु","गुरु","शनि","बुध",
+      "केतु","शुक्र","सूर्य","चंद्र","मंगल","राहु","गुरु","शनि","बुध"
+    ];
+    function nakInfo(lon){
+      const x=norm(lon);
+      const nakWidth=13+20/60; // 13°20'
+      const padaWidth=3+20/60; // 3°20'
+      const idx=Math.min(26,Math.floor(x/nakWidth));
+      const within=x-idx*nakWidth;
+      const pada=Math.min(4,Math.floor(within/padaWidth)+1);
+      return {name:nakNames[idx],pada,lord:nakLords[idx],index:idx};
+    }
+
+    const moon=rows.find(x=>x.name==="चंद्र");
+    const moonN=nakInfo(moon.lon);
+    document.getElementById("moonNak").innerHTML=
+      `<span class="badge">चंद्र Nakshatra: <b>${moonN.name}</b></span>
+       <span class="badge">Pada: <b>${moonN.pada}</b></span>
+       <span class="badge">Nakshatra Lord: <b>${moonN.lord}</b></span>`;
+
+    document.getElementById("nakRows").innerHTML=rows.map(x=>{
+      const n=nakInfo(x.lon);
+      return `<tr><td><b>${x.name}</b></td><td>${n.name}</td><td>${n.pada}</td><td>${n.lord}</td></tr>`;
+    }).join("");
+
+
+    // ---------------- V5: Vimshottari Dasha ----------------
+    const dashaOrder=["केतु","शुक्र","सूर्य","चंद्र","मंगल","राहु","गुरु","शनि","बुध"];
+    const dashaYears={केतु:7,शुक्र:20,सूर्य:6,चंद्र:10,मंगल:7,राहु:18,गुरु:16,शनि:19,बुध:17};
+    const dashaIndex={केतु:0,शुक्र:1,सूर्य:2,चंद्र:3,मंगल:4,राहु:5,गुरु:6,शनि:7,बुध:8};
+
+    function addYears(date, years){
+      const d=new Date(date.getTime());
+      d.setUTCDate(d.getUTCDate()+years*365.2425);
+      return d;
+    }
+    function fmtDate(d){
+      return d.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric",timeZone:"UTC"});
+    }
+    function mdEnd(start,years){ return addYears(start,years); }
+
+    const moonLon=moon.lon;
+    const moonNakWidth=13+20/60;
+    const moonNakIndex=Math.min(26,Math.floor(moonLon/moonNakWidth));
+    const moonWithin=moonLon-moonNakIndex*moonNakWidth;
+    const moonRemaining=Math.max(0,moonNakWidth-moonWithin);
+    const moonFractionRemaining=moonRemaining/moonNakWidth;
+    const firstLord=nakLords[moonNakIndex];
+    const firstIdx=dashaIndex[firstLord];
+
+    const birthUTC=utc;
+    const firstYears=dashaYears[firstLord]*moonFractionRemaining;
+    const dashaTimeline=[];
+    let cursor=new Date(birthUTC.getTime());
+
+    // Build enough sequence to cover 120 years from birth.
+    for(let i=0;i<18;i++){
+      const lord=dashaOrder[(firstIdx+i)%9];
+      const years=(i===0?firstYears:dashaYears[lord]);
+      const start=new Date(cursor.getTime());
+      const end=mdEnd(start,years);
+      dashaTimeline.push({lord,start,end,years});
+      cursor=end;
+      if(cursor.getUTCFullYear()>birthUTC.getUTCFullYear()+121) break;
+    }
+
+    function findCurrent(arr,date){
+      return arr.find(x=>date>=x.start && date<x.end);
+    }
+    const now=new Date();
+    const currentMD=findCurrent(dashaTimeline,now);
+
+    function antardashaList(md){
+      const out=[];
+      const startIdx=dashaIndex[md.lord];
+      let c=new Date(md.start.getTime());
+      for(let i=0;i<9;i++){
+        const lord=dashaOrder[(startIdx+i)%9];
+        // Antardasha duration = MD years * AD lord years / 120.
+        const years=md.years*dashaYears[lord]/120;
+        const end=mdEnd(c,years);
+        out.push({lord,start:new Date(c),end,years});
+        c=end;
+      }
+      return out;
+    }
+
+    let currentAD=null;
+    if(currentMD) currentAD=findCurrent(antardashaList(currentMD),now);
+
+    document.getElementById("dashaSummary").innerHTML=
+      `<span class="badge">Starting Mahadasha: <b>${firstLord}</b></span>
+       <span class="badge">Moon Nakshatra balance: <b>${(moonFractionRemaining*100).toFixed(2)}%</b></span>`;
+
+    document.getElementById("currentMD").innerHTML=currentMD?
+      `<b>${currentMD.lord}</b><br>${fmtDate(currentMD.start)} → ${fmtDate(currentMD.end)}`:"Birth timeline only";
+    document.getElementById("currentAD").innerHTML=currentAD?
+      `<b>${currentAD.lord}</b><br>${fmtDate(currentAD.start)} → ${fmtDate(currentAD.end)}`:"—";
+
+    document.getElementById("dashaRows").innerHTML=dashaTimeline.map(x=>
+      `<tr><td><b>${x.lord}</b></td><td>${fmtDate(x.start)}</td><td>${fmtDate(x.end)}</td><td>${x.years.toFixed(2)} years</td></tr>`
+    ).join("");
+
+
+    // ---------------- V6: Strength + Yoga Rule Engine ----------------
+    const exalted={सूर्य:"मेष",चंद्र:"वृषभ",मंगल:"मकर",बुध:"कन्या",गुरु:"कर्क",शुक्र:"मीन",शनि:"तुला"};
+    const debilitated={सूर्य:"तुला",चंद्र:"वृश्चिक",मंगल:"कर्क",बुध:"मीन",गुरु:"मकर",शुक्र:"कन्या",शनि:"मेष"};
+    const own={सूर्य:["सिंह"],चंद्र:["कर्क"],मंगल:["मेष","वृश्चिक"],बुध:["मिथुन","कन्या"],
+               गुरु:["धनु","मीन"],शुक्र:["वृषभ","तुला"],शनि:["मकर","कुंभ"]};
+
+    function statusFor(p){
+      const sign=SIGNS[p.sign];
+      if(exalted[p.name]===sign) return "उच्च";
+      if(debilitated[p.name]===sign) return "नीच";
+      if((own[p.name]||[]).includes(sign)) return "स्व राशि";
+      return "सामान्य";
+    }
+
+    document.getElementById("strengthRows").innerHTML=rows.map(p=>
+      `<tr><td><b>${p.name}</b></td><td>${SIGNS[p.sign]}</td><td>${p.house}</td><td>${statusFor(p)}</td></tr>`
+    ).join("");
+
+    const byName=Object.fromEntries(rows.map(p=>[p.name,p]));
+    const yogas=[];
+
+    // Gajakesari: Jupiter in a kendra (1/4/7/10) from Moon.
+    if(byName["गुरु"] && byName["चंद्र"]){
+      const rel=((byName["गुरु"].house-byName["चंद्र"].house+12)%12)+1;
+      if([1,4,7,10].includes(rel)){
+        yogas.push({name:"गजकेसरी योग",why:"गुरु चंद्र से केंद्र (1/4/7/10) में है।"});
+      }
+    }
+
+    // Pancha Mahapurusha prototype: Mars/Jupiter/Venus/Saturn/Mercury
+    // in own/exalted sign AND in a Kendra.
+    const pm=[
+      ["मंगल",["मेष","वृश्चिक"],"मकर","रुचक योग"],
+      ["बुध",["मिथुन","कन्या"],"कन्या","भद्र योग"],
+      ["गुरु",["धनु","मीन"],"कर्क","हंस योग"],
+      ["शुक्र",["वृषभ","तुला"],"मीन","मालव्य योग"],
+      ["शनि",["मकर","कुंभ"],"तुला","शश योग"]
+    ];
+    for(const [planet,owns,exalt,name] of pm){
+      const p=byName[planet];
+      if(p && [1,4,7,10].includes(p.house) &&
+         (owns.includes(SIGNS[p.sign]) || exalt===SIGNS[p.sign])){
+        yogas.push({name,why:`${planet} केंद्र भाव में स्व/उच्च राशि में है।`});
+      }
+    }
+
+    // Simple Dhana Yoga prototype:
+    // 2nd and 11th lords connected by occupying each other's house.
+    const lordPlanet={सूर्य:0,चंद्र:1,मंगल:2,बुध:3,गुरु:4,शुक्र:5,शनि:6};
+    function lordOfSign(si){ return lords[si]; }
+    const h2sign=houseSigns[1], h11sign=houseSigns[10];
+    const l2=lordOfSign(h2sign), l11=lordOfSign(h11sign);
+    const p2=byName[l2], p11=byName[l11];
+    if(p2 && p11 && ((p2.house===11 && p11.house===2) || (p2.house===p11.house))){
+      yogas.push({name:"धन योग (basic)",why:`2nd/11th lord connection detected: ${l2} और ${l11}।`});
+    }
+
+    // Simple Neecha-bhanga screening: debilitated planet whose dispositor is in a Kendra from Lagna.
+    for(const p of rows){
+      if(debilitated[p.name]===SIGNS[p.sign]){
+        const disp=lords[p.sign];
+        const dp=byName[disp];
+        if(dp && [1,4,7,10].includes(dp.house)){
+          yogas.push({name:"नीचभंग संकेत",why:`${p.name} नीच राशि में है और उसके राशि स्वामी ${disp} केंद्र में है।`});
+        }
+      }
+    }
+
+    const yogaEl=document.getElementById("yogaResults");
+    yogaEl.innerHTML=yogas.length ? yogas.map(y=>
+      `<div class="rule-card"><div class="rule-ok">✓ ${y.name}</div><div>${y.why}</div></div>`
+    ).join("") : `<div class="rule-card">इस prototype के selected rules में कोई योग detect नहीं हुआ।</div>`;
+
+
+    // ---------------- V7: Interpretation Layer ----------------
+    function readingText(){
+      const parts=[];
+      const lagnaSign=SIGNS[ascSign];
+      parts.push(`<p><b>लग्न:</b> ${lagnaSign}. यह reading अभी उपलब्ध structured chart data पर आधारित है।</p>`);
+
+      const strong=rows.filter(p=>["उच्च","स्व राशि"].includes(statusFor(p)));
+      if(strong.length){
+        parts.push(`<p><b>मुख्य ग्रह strength:</b> ${strong.map(p=>`${p.name} (${statusFor(p)})`).join(", ")}.</p>`);
+      }
+
+      if(yogas.length){
+        parts.push(`<p><b>Detected योग:</b> ${yogas.map(y=>y.name).join(", ")}. हर योग का फल पूरी कुंडली के context में देखना चाहिए; केवल एक योग से final prediction नहीं बनता।</p>`);
+      }else{
+        parts.push(`<p><b>योग:</b> selected prototype rules में कोई योग detect नहीं हुआ। इसका अर्थ यह नहीं कि कुंडली में कोई योग नहीं है—हमारी library अभी सीमित है।</p>`);
+      }
+
+      if(moon){
+        parts.push(`<p><b>मन/मानसिक pattern के लिए Moon:</b> चंद्र ${SIGNS[moon.sign]} में और ${moonN.name} Nakshatra में है। आगे Moon-based interpretation rules को विस्तृत किया जाएगा।</p>`);
+      }
+
+      if(currentMD){
+        parts.push(`<p><b>दशा context:</b> वर्तमान calculation के अनुसार Mahadasha ${currentMD.lord} और Antardasha ${currentAD?currentAD.lord:"—"} है। दशा का फल ग्रह की natal स्थिति और संबंधित भावों के साथ पढ़ा जाएगा।</p>`);
+      }
+      return parts.join("");
+    }
+    document.getElementById("aiReading").innerHTML=readingText();
+
+document.getElementById("basics").innerHTML=
+      `<div class="badge">Ayanamsha ≈ ${dms(ayan)}</div>
+       <div class="badge">Lagna longitude: ${dms(asc)}</div>
+       <div class="badge">System: Sidereal + Whole Sign</div>`;
+
+    document.getElementById("out").style.display="block";
+  }catch(e){
+    msg.innerHTML=`<p class="error">⚠️ ${e.message}</p>`;
+  }
+}
+
+function askAI(){
+  const q=document.getElementById("aiQuestion").value.trim().toLowerCase();
+  const box=document.getElementById("aiAnswer");
+  if(!q){box.style.display="block";box.innerHTML="कृपया कोई सवाल लिखें।";return;}
+  let answer="";
+  if(q.includes("career")||q.includes("job")||q.includes("काम")||q.includes("व्यवसाय")){
+    answer="Career reading के लिए पहले 10th house, उसके lord, संबंधित ग्रहों की strength और वर्तमान Dasha को साथ में देखना चाहिए। V7 में basic data मौजूद है; अगली version में इन conditions को dedicated career rules में बदला जाएगा।";
+  }else if(q.includes("marriage")||q.includes("विवाह")||q.includes("शादी")){
+    answer="Marriage reading में 7th house, 7th lord, Venus/Jupiter, relevant aspects और Dasha को साथ में evaluate करना चाहिए। अभी हमारा engine calculation foundation तैयार कर रहा है।";
+  }else if(q.includes("money")||q.includes("finance")||q.includes("पैसा")||q.includes("धन")){
+    answer="Finance reading में 2nd और 11th houses, उनके lords, धन-संबंधित योग और Dasha को context में देखना चाहिए। केवल एक ग्रह या योग के आधार पर final prediction नहीं देना चाहिए।";
+  }else{
+    answer="आपका सवाल astrology rules के context में record किया गया है। अगले चरण में real LLM integration जोड़कर यही structured Kundli data AI को दिया जाएगा, ताकि वह अधिक विस्तृत Hindi interpretation दे सके।";
+  }
+  box.style.display="block";
+  box.innerHTML=`<b>🤖 Prototype AI:</b><p>${answer}</p>`;
+}
+
+async function testGemini(){
+  const key=document.getElementById("apiKey").value.trim();
+  const status=document.getElementById("apiStatus");
+  if(!key){
+    status.innerHTML="⚠️ पहले Gemini API key डालें।";
+    return;
+  }
+  status.innerHTML="⏳ Connection test हो रहा है...";
+  try{
+    const endpoint="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key="+encodeURIComponent(key);
+    const prompt="You are testing an astrology app connection. Reply only: AI connection successful.";
+    const res=await fetch(endpoint,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})
+    });
+    const data=await res.json();
+    if(!res.ok) throw new Error(data?.error?.message || "API request failed");
+    const text=data?.candidates?.[0]?.content?.parts?.[0]?.text || "Response received.";
+    status.innerHTML="✅ "+text;
+  }catch(e){
+    status.innerHTML="❌ "+e.message;
+  }
+}
+</script>
+
+<script>
+async function v9AskAI(){
+  const key=document.getElementById("v9ApiKey").value.trim();
+  const q=document.getElementById("v9Question").value.trim();
+  const st=document.getElementById("v9Status");
+  const ans=document.getElementById("v9Answer");
+  if(!key){st.innerHTML="⚠️ पहले Gemini API key डालें।";return;}
+  if(!q){st.innerHTML="⚠️ पहले अपना सवाल लिखें।";return;}
+
+  // Collect whatever structured chart information the current engine has rendered.
+  const sections=[];
+  for(const id of ["basics","strengthRows","yogaResults","dashaSummary","currentMD","currentAD"]){
+    const el=document.getElementById(id);
+    if(el && el.innerText.trim()) sections.push(id.toUpperCase()+":\n"+el.innerText.trim());
+  }
+  const chartData=sections.join("\n\n");
+
+  const systemInstruction =
+`You are the interpretation layer of DeepJyotish AI.
+Answer in simple Hindi/Hinglish.
+Use only the supplied chart data and the user's question.
+Do not invent planetary positions, yogas, dashas or exact future events.
+Clearly distinguish traditional Jyotish interpretation from certainty.
+If the supplied data is incomplete, say what is missing.
+Do not claim astrology is scientifically proven.
+Give a useful, structured answer with headings and practical context.`;
+
+  const prompt=systemInstruction+
+`\n\nSTRUCTURED KUNDLI DATA:\n${chartData||"No calculated chart data is available yet."}`+
+`\n\nUSER QUESTION:\n${q}`;
+
+  st.innerHTML="⏳ Gemini AI जवाब तैयार कर रहा है...";
+  ans.style.display="none";
+
+  try{
+    const endpoint="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+    const res=await fetch(endpoint,{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "x-goog-api-key":key
+      },
+      body:JSON.stringify({
+        systemInstruction:{parts:[{text:systemInstruction}]},
+        contents:[{role:"user",parts:[{text:`STRUCTURED KUNDLI DATA:\n${chartData}\n\nUSER QUESTION:\n${q}`}]}],
+        generationConfig:{temperature:0.4,maxOutputTokens:900}
+      })
+    });
+    const data=await res.json();
+    if(!res.ok) throw new Error(data?.error?.message || ("API error "+res.status));
+    const text=data?.candidates?.[0]?.content?.parts?.map(p=>p.text||"").join("") || "कोई उत्तर नहीं मिला।";
+    st.innerHTML="✅ AI response received";
+    ans.style.display="block";
+    ans.textContent=text;
+  }catch(e){
+    st.innerHTML="❌ "+e.message;
+    ans.style.display="none";
+  }
+}
+</script>
+</body>
+</html>
